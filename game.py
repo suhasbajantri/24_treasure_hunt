@@ -258,6 +258,19 @@ class GameEngine:
         pygame.draw.rect(self.screen,(20,20,35),hud)
         st = self.font.render(self.status+"  |  R=Restart", True, (200,200,200))
         self.screen.blit(st,(8,ROWS*TILE+13))
+        inventory_slot = pygame.Rect(WIDTH-50, ROWS*TILE+5, 42, 40)
+        pygame.draw.rect(self.screen, (35,35,50), inventory_slot)
+        pygame.draw.rect(self.screen, (145,145,155), inventory_slot, 2)
+        if self.player.has_key:
+            key_color = COLORS[KEY]
+            key_center = (inventory_slot.x+12, inventory_slot.centery)
+            pygame.draw.circle(self.screen, key_color, key_center, 6, 3)
+            pygame.draw.line(self.screen, key_color, (key_center[0]+6,key_center[1]),
+                             (inventory_slot.right-7,key_center[1]), 4)
+            pygame.draw.line(self.screen, key_color, (inventory_slot.right-17,key_center[1]),
+                             (inventory_slot.right-17,key_center[1]+5), 3)
+            pygame.draw.line(self.screen, key_color, (inventory_slot.right-9,key_center[1]),
+                             (inventory_slot.right-9,key_center[1]+5), 3)
         if self.won:
             ov=pygame.Surface((WIDTH,ROWS*TILE),pygame.SRCALPHA)
             ov.fill((0,0,0,140))
