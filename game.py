@@ -52,14 +52,55 @@ def generate_world():
                         and grid[nr][nc] != WALL and (nr, nc) not in reachable):
                     reachable.add((nr, nc))
                     pending.append((nr, nc))
+    guard_patrol = find_guard_patrol(grid, start, reachable)
+    guard_cells = set(guard_patrol or ())
     trap_positions = [
         (r, c)
         for r, c in sorted(reachable)
-        if grid[r][c] == FLOOR and (r, c) != start_cell
+        if grid[r][c] == FLOOR and (r, c) != start_cell and (r, c) not in guard_cells
     ]
     for r, c in random.sample(trap_positions, min(5, len(trap_positions))):
         grid[r][c] = TRAP
     return grid, start
+
+def find_guard_patrol(grid, start, reachable=None):
+    start_cell = (start.y, start.x) if start else None
+    if reachable is None:
+        reachable = set()
+        if start_cell is not None:
+            reachable.add(start_cell)
+            pending = [start_cell]
+            while pending:
+                r, c = pending.pop()
+                for nr, nc in ((r-1, c), (r+1, c), (r, c-1), (r, c+1)):
+                    if (0 <= nr < ROWS and 0 <= nc < COLS
+                            and grid[nr][nc] != WALL and (nr, nc) not in reachable):
+                        reachable.add((nr, nc))
+                        pending.append((nr, nc))
+
+    target = next(
+        ((r, c) for r, row in enumerate(grid) for c, cell in enumerate(row) if cell == CHEST),
+        start_cell,
+    )
+    if target is None:
+        return None
+
+    candidates = {
+        (r, c) for r, c in reachable
+        if grid[r][c] == FLOOR and (r, c) != start_cell
+    }
+    patrol_pairs = [
+        (a, b)
+        for a in candidates
+        for b in ((a[0]+1, a[1]), (a[0], a[1]+1))
+        if b in candidates
+    ]
+    if not patrol_pairs:
+        return None
+    return min(
+        patrol_pairs,
+        key=lambda pair: sum(abs(point[0]-target[0]) + abs(point[1]-target[1]) for point in pair),
+    )
 
 COLORS = {
     WALL: (60,50,70),
@@ -97,6 +138,35 @@ class Player:
         if self.has_key:
             pygame.draw.circle(screen, (220,220,60), (self.rect.right-6, self.rect.top+6), 5)
 
+class Guard:
+    def __init__(self, patrol):
+        self.points = [
+            pygame.Vector2(c*TILE+TILE//2, r*TILE+TILE//2)
+            for r, c in patrol
+        ]
+        self.position = self.points[0].copy()
+        self.target_index = 1
+        self.speed = 2
+        self.rect = pygame.Rect(0, 0, 24, 24)
+        self.rect.center = (round(self.position.x), round(self.position.y))
+
+    def update(self):
+        target = self.points[self.target_index]
+        direction = target - self.position
+        distance = direction.length()
+        if distance <= self.speed:
+            self.position = target.copy()
+            self.target_index = 1 - self.target_index
+        else:
+            self.position += direction.normalize() * self.speed
+        self.rect.center = (round(self.position.x), round(self.position.y))
+
+    def draw(self, screen):
+        pygame.draw.rect(screen, (20, 70, 45), self.rect.inflate(4, 4), border_radius=5)
+        pygame.draw.rect(screen, (40, 210, 100), self.rect, border_radius=4)
+        pygame.draw.circle(screen, (245, 255, 220), (self.rect.centerx-5, self.rect.centery-2), 2)
+        pygame.draw.circle(screen, (245, 255, 220), (self.rect.centerx+5, self.rect.centery-2), 2)
+
 
 WIDTH = COLS * TILE
 HEIGHT = ROWS * TILE + 50
@@ -121,6 +191,8 @@ class GameEngine:
             sx, sy = TILE+6, TILE+6
         self.start_position = (sx, sy)
         self.player = Player(sx, sy)
+        patrol = find_guard_patrol(self.grid, start)
+        self.guard = Guard(patrol) if patrol else None
         self.won = False
         self.status = "Find the KEY, then the CHEST!"
         self.status_until = None
@@ -138,6 +210,13 @@ class GameEngine:
         if self.won: return
         keys = pygame.key.get_pressed()
         self.player.move(keys, self.grid, ROWS, COLS)
+        if self.guard:
+            self.guard.update()
+            if self.player.rect.colliderect(self.guard.rect):
+                self.player.rect.topleft = self.start_position
+                self.status = "Guard caught you! Back to start!"
+                self.status_until = pygame.time.get_ticks() + 2000
+                return
         pr = self.player.rect.centery // TILE
         pc = self.player.rect.centerx // TILE
         if 0<=pr<ROWS and 0<=pc<COLS:
@@ -172,6 +251,8 @@ class GameEngine:
                     pygame.draw.line(self.screen, (255,210,100), (center[0]-9,center[1]-9), (center[0]+9,center[1]+9), 4)
                     pygame.draw.line(self.screen, (255,210,100), (center[0]+9,center[1]-9), (center[0]-9,center[1]+9), 4)
         self.player.draw(self.screen)
+        if self.guard:
+            self.guard.draw(self.screen)
         hud = pygame.Rect(0,ROWS*TILE,WIDTH,50)
         pygame.draw.rect(self.screen,(20,20,35),hud)
         st = self.font.render(self.status+"  |  R=Restart", True, (200,200,200))
