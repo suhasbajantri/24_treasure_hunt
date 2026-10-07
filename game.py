@@ -253,6 +253,7 @@ class GameEngine:
         self.player.draw(self.screen)
         if self.guard:
             self.guard.draw(self.screen)
+        self.draw_minimap()
         hud = pygame.Rect(0,ROWS*TILE,WIDTH,50)
         pygame.draw.rect(self.screen,(20,20,35),hud)
         st = self.font.render(self.status+"  |  R=Restart", True, (200,200,200))
@@ -266,6 +267,29 @@ class GameEngine:
             self.screen.blit(msg,(WIDTH//2-msg.get_width()//2,ROWS*TILE//2-30))
             self.screen.blit(sub,(WIDTH//2-sub.get_width()//2,ROWS*TILE//2+20))
         pygame.display.flip()
+
+    def draw_minimap(self):
+        cell_size = 5
+        padding = 6
+        map_width = COLS * cell_size
+        map_height = ROWS * cell_size
+        panel = pygame.Rect(WIDTH-map_width-2*padding-12, 12,
+                            map_width+2*padding, map_height+2*padding)
+        pygame.draw.rect(self.screen, (20,20,35), panel)
+        pygame.draw.rect(self.screen, (185,185,185), panel, 1)
+
+        for r, row in enumerate(self.grid):
+            for c, cell in enumerate(row):
+                color = (55,48,65) if cell == WALL else (205,195,175)
+                rect = pygame.Rect(panel.x+padding+c*cell_size,
+                                   panel.y+padding+r*cell_size,
+                                   cell_size, cell_size)
+                pygame.draw.rect(self.screen, color, rect)
+
+        player_x = panel.x + padding + self.player.rect.centerx * map_width // WIDTH
+        player_y = panel.y + padding + self.player.rect.centery * map_height // (ROWS*TILE)
+        pygame.draw.circle(self.screen, (20,20,20), (player_x,player_y), 4)
+        pygame.draw.circle(self.screen, (50,220,255), (player_x,player_y), 2)
 
     def run(self):
         running=True
